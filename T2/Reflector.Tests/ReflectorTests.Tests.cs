@@ -28,10 +28,10 @@ public class ReflectorTests
     {
         this.reflector = new Reflector();
         this.testOutputPath = Path.Combine(Path.GetTempPath(), "ReflectorTestOutput");
-        if (Directory.Exists(this.testOutputPath))
-        {
-            Directory.Delete(this.testOutputPath, true);
-        }
+        // if (Directory.Exists(this.testOutputPath))
+        // {
+        //     Directory.Delete(this.testOutputPath, true);
+        // }
 
         Directory.CreateDirectory(this.testOutputPath);
         Environment.CurrentDirectory = this.testOutputPath;
