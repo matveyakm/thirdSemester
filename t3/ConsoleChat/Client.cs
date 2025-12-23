@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 /// <summary>
 /// Содержит логику работы чата в режиме клиента.
 /// </summary>
-internal static class Client
+public static class Client
 {
     /// <summary>
     /// Подключается к серверу и начинает двусторонний чат.

@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 /// <summary>
 /// Обработчик двустороннего чата. общий для и сервера и для клиента.
 /// </summary>
-internal static class ChatHandler
+public static class ChatHandler
 {
     /// <summary>
     /// Запускает задачи отправки и приёма одновременно.

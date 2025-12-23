@@ -1,25 +1,25 @@
-// <copyright file="MessageSender.cs" company="matveyakm">
+// <copyright file="MessageSenderTests.cs" company="matveyakm">
 //     Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
 namespace NetworkChat;
 
 using System;
-using System.Net.Sockets;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Чтение ввода и отправка сообщений.
+/// Tests for the MessageSender class.
 /// </summary>
-public static class MessageSender
+public static class MessageSenderTests
 {
     /// <summary>
-    /// Асинхронно читает ввод и отправляет сообщения.
+    /// Asynchronously reads input from the console and sends it to the specified stream.
     /// </summary>
-    /// <param name="stream">Сетевой поток.</param>
+    /// <param name="stream">The stream to which the input messages will be sent.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task RunAsync(NetworkStream stream)
+    public static async Task RunAsync(Stream stream)
     {
         while (true)
         {

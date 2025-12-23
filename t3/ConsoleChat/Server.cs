@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 /// <summary>
 /// Логика работы чата в режиме сервера.
 /// </summary>
-internal static class Server
+public static class Server
 {
     /// <summary>
     /// Запускает сервер, ожидает подключение клиента и начинает двусторонний чат.

@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 /// <summary>
 /// Определяет режим работы (сервер или клиент) по аргументам командной строки.
 /// </summary>
-internal class Program
+public class Program
 {
     private static async Task Main(string[] args)
     {

@@ -9,7 +9,7 @@ using System;
 /// <summary>
 /// Парсер аргументов командной строки и вывод справки.
 /// </summary>
-internal static class ChatOptions
+public static class ChatOptions
 {
     /// <summary>
     /// Парсит аргументы терминала и возвращает конфигурацию запуска.

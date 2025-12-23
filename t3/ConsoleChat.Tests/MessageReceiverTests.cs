@@ -1,25 +1,26 @@
-// <copyright file="MessageReceiver.cs" company="matveyakm">
+// <copyright file="MessageReceiverTests.cs" company="matveyakm">
 //     Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
 namespace NetworkChat;
 
 using System;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Отвечает за приём и отображение входящих сообщений.
+/// Tests for the MessageReceiver class.
 /// </summary>
-public static class MessageReceiver
+public static class MessageReceiverTests
 {
     /// <summary>
-    /// Асинхронно читает сообщения от собеседника и выводит их в консоль.
+    /// Asynchronously receives messages from the specified stream.
     /// </summary>
-    /// <param name="stream">Сетевой поток.</param>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static async Task RunAsync(NetworkStream stream)
+    /// <param name="stream">The stream to read messages from.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public static async Task RunAsync(Stream stream)
     {
         var buffer = new byte[4096];
         var sb = new StringBuilder();
