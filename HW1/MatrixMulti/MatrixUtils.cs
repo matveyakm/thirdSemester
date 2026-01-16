@@ -9,7 +9,7 @@ using System.Linq;
 /// <summary>
 /// Provides utility methods for matrix operations.
 /// </summary>
-public class MatrixUtils
+public static class MatrixUtils
 {
     /// <summary>
     /// Compares two matrices for equality.
