@@ -40,10 +40,9 @@ public class MatrixMultiTests
     /// <param name="answerFilePath">The path to the answer file containing the expected result matrix.</param>
     [Test]
     [TestCaseSource(nameof(SuccessfulTestCases))]
-    public void MultiplySingleThread_WithTestFile_MatchesExpectedAnswer(string testFilePath, string answerFilePath)
-    {
-        MultiplyAndAssert(testFilePath, answerFilePath, Multiplier.MultiplySingleThread);
-    }
+    public void MultiplySingleThread_WithTestFile_MatchesExpectedAnswer(
+        string testFilePath, string answerFilePath)
+        => MultiplyAndAssert(testFilePath, answerFilePath, Multiplier.MultiplySingleThread);
 
     /// <summary>
     /// Tests the multiplication of matrices using a parallel method with the provided test and answer files.

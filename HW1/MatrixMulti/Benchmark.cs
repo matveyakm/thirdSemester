@@ -7,7 +7,7 @@ namespace MatrixMultiplier;
 /// <summary>
 /// Provides methods for benchmarking matrix multiplication.
 /// </summary>
-internal class Benchmark
+internal static class Benchmark
 {
     /// <summary>
     /// Benchmarks matrix multiplication for given size and iterations.
@@ -15,17 +15,18 @@ internal class Benchmark
     /// <param name="n">The size of the matrices.</param>
     /// <param name="iterations">The number of iterations to perform.</param>
     /// <returns>A string containing the benchmark results formatted as "n;iterations;singleThreadTime;parallelTime".</returns>
-    public static string BenchmarkMultiplication(int n, int iterations)
+    public static (int ExpectedValueSingle, int ExpectedValueParallel, double StandardDeviationSingle, double StandardDeviationParallel) BenchmarkMultiplication(int n, int iterations)
     {
         if (n <= 0 || iterations <= 0)
         {
             throw new ArgumentException("Matrix size and iterations must be positive integers.");
         }
 
-        var watchParallel = System.Diagnostics.Stopwatch.StartNew();
-        watchParallel.Stop();
-        var watchSingle = System.Diagnostics.Stopwatch.StartNew();
-        watchSingle.Stop();
+        var timesSingle = new List<long>(iterations);
+        var timesParallel = new List<long>(iterations);
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        watch.Stop();
         for (int i = 0; i < iterations; i++)
         {
             string latexA = GenerateMatrix(n, n);
@@ -34,13 +35,15 @@ internal class Benchmark
             int[,] matrixA = Parser.ParseMatrix(latexA);
             int[,] matrixB = Parser.ParseMatrix(latexB);
 
-            watchParallel.Start();
+            watch.Restart();
             int[,] resultParallel = Multiplier.MultiplyParallel(matrixA, matrixB);
-            watchParallel.Stop();
+            watch.Stop();
+            timesParallel.Add(watch.ElapsedMilliseconds);
 
-            watchSingle.Start();
+            watch.Restart();
             int[,] resultSingle = Multiplier.MultiplySingleThread(matrixA, matrixB);
-            watchSingle.Stop();
+            watch.Stop();
+            timesSingle.Add(watch.ElapsedMilliseconds);
 
             if (!MatrixUtils.AreMatricesEqual(resultParallel, resultSingle))
             {
@@ -48,12 +51,21 @@ internal class Benchmark
             }
         }
 
-        return $"{n};{iterations};{watchSingle.ElapsedMilliseconds / iterations};{watchParallel.ElapsedMilliseconds / iterations}\n";
+        var expectedValueSingle = timesSingle.Average();
+        var expectedValueParallel = timesParallel.Average();
+        var standardDeviationSingle = StandardDeviation(timesSingle);
+        var standardDeviationParallel = StandardDeviation(timesParallel);
+
+        return (
+            (int)Math.Round(expectedValueSingle),
+            (int)Math.Round(expectedValueParallel),
+            Math.Round(standardDeviationSingle, 2),
+            Math.Round(standardDeviationParallel, 2));
     }
 
     private static string GenerateMatrix(int rows, int cols)
     {
-        Random rand = new Random();
+        Random rand = new();
         string latex = string.Empty;
 
         for (int i = 0; i < rows; i++)
@@ -74,5 +86,24 @@ internal class Benchmark
         }
 
         return latex;
+    }
+
+    private static double StandardDeviation(IReadOnlyList<long> values)
+    {
+        if (values == null || values.Count <= 1)
+        {
+            return 0;
+        }
+
+        double mean = values.Average();
+        double sumOfSquares = 0;
+
+        foreach (var val in values)
+        {
+            double diff = val - mean;
+            sumOfSquares += diff * diff;
+        }
+
+        return Math.Sqrt(sumOfSquares / (values.Count - 1));
     }
 }
