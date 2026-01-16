@@ -11,7 +11,7 @@ using System.Threading;
 /// <summary>
 /// Provides methods for multiplying matrices.
 /// </summary>
-public class Multiplier
+public static class Multiplier
 {
     /// <summary>
     /// Multiplies two matrices in parallel.
