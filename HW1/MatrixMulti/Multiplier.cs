@@ -37,7 +37,7 @@ public class Multiplier
         threadCount = Math.Min(threadCount, 32);
         threadCount = Math.Max(threadCount, 1);
 
-        Thread[] threads = new Thread[threadCount];
+        var threads = new Thread[threadCount];
         int rowsPerThread = (int)Math.Ceiling((double)rowsA / threadCount);
 
         for (int t = 0; t < threadCount; t++)
