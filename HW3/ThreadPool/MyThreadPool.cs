@@ -46,10 +46,7 @@ public sealed class MyThreadPool : IDisposable
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="func"/> is <c>null</c>.</exception>
     public IMyTask<TResult> Submit<TResult>(Func<TResult> func)
     {
-        if (func is null)
-        {
-            throw new ArgumentNullException(nameof(func));
-        }
+        ArgumentNullException.ThrowIfNull(func);
 
         if (this.cts.IsCancellationRequested)
         {
@@ -99,10 +96,7 @@ public sealed class MyThreadPool : IDisposable
     /// <exception cref="InvalidOperationException">Thrown if the pool is shutting down.</exception>
     internal void EnqueueTask(Action action)
     {
-        if (action is null)
-        {
-            throw new ArgumentNullException(nameof(action));
-        }
+        ArgumentNullException.ThrowIfNull(action);
 
         lock (this.queueLock)
         {
