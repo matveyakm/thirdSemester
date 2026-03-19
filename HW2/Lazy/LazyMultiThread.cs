@@ -16,9 +16,9 @@ namespace Lazy;
 /// </remarks>
 public sealed class LazyMultiThread<T> : ILazy<T>
 {
-    private readonly object syncRoot = new();
+    private readonly Lock syncRoot = new();
     private Func<T>? supplier;
-    private T? value;
+    private T? value = default!;
     private volatile bool isComputed;
 
     /// <summary>
@@ -38,19 +38,21 @@ public sealed class LazyMultiThread<T> : ILazy<T>
     {
         if (this.isComputed)
         {
-            return this.value!;
+            return this.value;
         }
 
         lock (this.syncRoot)
         {
-            if (!this.isComputed)
+            if (this.isComputed)
             {
-                this.value = this.supplier!();
-                this.isComputed = true;
-                this.supplier = null;
+                return this.value;
             }
-        }
 
-        return this.value!;
+            this.value = this.supplier!();
+            this.supplier = null;
+            this.isComputed = true;
+
+            return this.value;
+        }
     }
 }

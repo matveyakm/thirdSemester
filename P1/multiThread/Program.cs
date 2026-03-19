@@ -42,7 +42,6 @@ class DiningPhilosophers
             Eat(id);
         }
     }
-
     private static void Eat(int id)
     {
         int leftFork = id;
