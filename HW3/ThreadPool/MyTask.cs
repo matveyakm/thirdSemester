@@ -18,7 +18,7 @@ internal sealed class MyTask<TResult> : IMyTask<TResult>
     private readonly ManualResetEvent completionEvent = new(false);
     private readonly List<Action> continuations = [];
     private readonly MyThreadPool pool;
-    private readonly object locker = new object();
+    private readonly Lock locker = new();
     private volatile bool isCompleted;
     private TResult? result;
     private Exception? exception;
@@ -32,7 +32,6 @@ internal sealed class MyTask<TResult> : IMyTask<TResult>
     {
         this.func = func ?? throw new ArgumentNullException(nameof(func));
         this.pool = pool;
-        this.isCompleted = false;
     }
 
     /// <summary>
@@ -55,12 +54,17 @@ internal sealed class MyTask<TResult> : IMyTask<TResult>
 
             lock (this.locker)
             {
-                if (this.pool.PoolException != null)
+                if (this.exception != null)
                 {
-                    throw new AggregateException(this.pool.PoolException);
+                    throw new AggregateException(this.exception);
                 }
 
-                return this.exception != null ? throw new AggregateException(this.exception) : this.result!;
+                if (this.result == null)
+                {
+                    throw new InvalidOperationException("Task completed with unexpected null result.");
+                }
+
+                return this.result!;
             }
         }
     }
@@ -77,27 +81,25 @@ internal sealed class MyTask<TResult> : IMyTask<TResult>
 
         lock (this.locker)
         {
-            var newTask = new MyTask<TNewResult>(
-                () => continuation(
-                    this.exception != null
-                ? throw new AggregateException(this.exception) : this.result!),
-                this.pool);
+            var newTask = new MyTask<TNewResult>(ContinuationFunc, this.pool);
 
             if (this.IsCompleted)
             {
-                if (this.pool.PoolException != null)
-                {
-                    throw new InvalidOperationException("Cannot continue task after pool error");
-                }
-
                 this.pool.EnqueueTask(newTask.Complete);
             }
             else
             {
-                this.continuations.Add(() => this.pool.EnqueueTask(newTask.Complete));
+                this.continuations.Add(newTask.Complete);
             }
 
             return newTask;
+
+            TNewResult ContinuationFunc()
+            {
+                var sourceResult = this.Result;
+
+                return continuation(sourceResult);
+            }
         }
     }
 
@@ -117,15 +119,21 @@ internal sealed class MyTask<TResult> : IMyTask<TResult>
         }
         finally
         {
+            List<Action> continuationsToExecute;
+
             lock (this.locker)
             {
                 this.isCompleted = true;
                 this.completionEvent.Set();
-                foreach (var continuation in this.continuations)
+
+                continuationsToExecute = new List<Action>(this.continuations);
+                this.continuations.Clear();
+
+                foreach (var continuation in continuationsToExecute)
                 {
-                    if (this.pool.PoolException == null)
+                    if (this.exception == null)
                     {
-                         this.pool.EnqueueTask(continuation);
+                        this.pool.EnqueueTask(continuation);
                     }
                 }
             }
