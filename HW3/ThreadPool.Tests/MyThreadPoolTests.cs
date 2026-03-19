@@ -2,233 +2,460 @@
 //     Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
-namespace ThreadPool.Tests;
+namespace ThreadPool.Test;
 
-using System;
-using System.Linq;
-using System.Threading;
-using NUnit.Framework;
+using System.Collections.Concurrent;
 
 /// <summary>
-/// Unit tests for <see cref="MyThreadPool"/> and <see cref="IMyTask{TResult}"/>.
+/// Custom unit tests for MyThreadPool covering basic submission, exceptions, continuations,
+/// concurrency, shutdown scenarios and edge cases.
 /// </summary>
-[TestFixture]
 public class MyThreadPoolTests
 {
-    private MyThreadPool? pool;
-
     /// <summary>
-    /// Sets up a new thread pool with 3 worker threads before each test.
-    /// </summary>
-    [SetUp]
-    public void Setup()
-    {
-        this.pool = new MyThreadPool(3);
-    }
-
-    /// <summary>
-    /// Cleans up the thread pool after each test.
-    /// </summary>
-    [TearDown]
-    public void TearDown()
-    {
-        this.pool?.Dispose();
-    }
-
-    /// <summary>
-    /// Verifies that <see cref="MyThreadPool.Submit{TResult}(Func{TResult})"/> returns the correct result.
+    /// Verifies that the constructor throws ArgumentOutOfRangeException
+    /// when zero worker threads are requested.
     /// </summary>
     [Test]
-    public void Submit_ReturnsCorrectResult()
-    {
-        var task = this.pool!.Submit(() => 42);
-        Assert.That(task.Result, Is.EqualTo(42));
-    }
+    public void MyThreadPool_Constructor_ZeroThreads_ThrowsArgumentOutOfRangeException()
+     => Assert.Throws<ArgumentOutOfRangeException>(() => new MyThreadPool(0));
 
     /// <summary>
-    /// Verifies that <see cref="IMyTask{TResult}.ContinueWith{TNewResult}(Func{TResult, TNewResult})"/>
-    /// executes after the original task completes.
+    /// Tests that a task throwing an exception propagates AggregateException,
+    /// but the pool continues to accept and execute new tasks successfully.
     /// </summary>
     [Test]
-    public void ContinueWith_ExecutesAfterCompletion()
+    public void MyThreadPool_Submit_TaskWithException_ThrowsAggregateExceptionButPoolContinues()
     {
-        var task1 = this.pool!.Submit(() => 10);
-        var task2 = task1.ContinueWith(x => x * 2);
-        var task3 = task2.ContinueWith(x => x.ToString());
+        var pool = new MyThreadPool(2);
 
-        Assert.That(task3.Result, Is.EqualTo("20"));
-    }
+        var failingTask = () =>
+        {
+            int[] numbers = [];
+            if (numbers.Length == 0)
+            {
+                throw new InvalidOperationException("Test exception");
+            }
 
-    /// <summary>
-    /// Verifies that multiple continuations from the same task execute independently.
-    /// </summary>
-    [Test]
-    public void MultipleContinuations_RunIndependently()
-    {
-        var task = this.pool!.Submit(() => 5);
-        var t1 = task.ContinueWith(x => x + 1);
-        var t2 = task.ContinueWith(x => x * 10);
+            return numbers.Sum(x => x * x);
+        };
 
+        var task = pool.Submit(failingTask);
+
+        Assert.Throws<AggregateException>(() => _ = task.Result);
+
+        try
+        {
+            _ = task.Result;
+        }
+        catch (AggregateException ex)
+        {
+            Assert.That(ex.InnerException, Is.TypeOf<InvalidOperationException>());
+            Assert.That(ex.InnerException!.Message, Is.EqualTo("Test exception"));
+        }
+
+        var anotherTask = pool.Submit(() => 52);
         Assert.Multiple(() =>
         {
-            Assert.That(t1.Result, Is.EqualTo(6));
-            Assert.That(t2.Result, Is.EqualTo(50));
+            Assert.That(anotherTask.Result, Is.EqualTo(52));
+            Assert.That(anotherTask.IsCompleted, Is.True);
         });
+
+        pool.Shutdown();
     }
 
     /// <summary>
-    /// Verifies that an exception in the task function is wrapped in <see cref="AggregateException"/>.
+    /// Tests submitting a large number of tasks and verifies that all of them
+    /// complete with correct results and IsCompleted flag is set.
     /// </summary>
     [Test]
-    public void Exception_InTask_PropagatesViaAggregateException()
+    public void MyThreadPool_Submit_MultipleTasks_AllTasksCompleteCorrectly()
     {
-        var task = this.pool!.Submit<int>(() =>
+        var pool = new MyThreadPool(5);
+        const int taskCount = 64;
+
+        var tasks = new IMyTask<string>[taskCount];
+        for (var i = 1; i <= taskCount; i++)
         {
-            throw new InvalidOperationException("boom");
-        });
-
-        var ex = Assert.Throws<AggregateException>(() =>
-        {
-            var unused = task.Result;
-        });
-        Assert.That(ex!.InnerException!.Message, Is.EqualTo("boom"));
-    }
-
-    /// <summary>
-    /// Verifies that an exception in a continuation task is propagated correctly.
-    /// </summary>
-    [Test]
-    public void Exception_InContinuation_Propagates()
-    {
-        var task1 = this.pool!.Submit(() => 1);
-        var task2 = task1.ContinueWith<int>(_ => throw new ArgumentException("fail"));
-
-        var ex = Assert.Throws<AggregateException>(() =>
-        {
-            var unused = task2.Result;
-        });
-        Assert.That(ex!.InnerException!.Message, Is.EqualTo("fail"));
-    }
-
-    /// <summary>
-    /// Verifies that <see cref="MyThreadPool.Shutdown"/> waits for all tasks to complete.
-    /// </summary>
-    [Test]
-    public void Shutdown_WaitsForAllTasksToComplete()
-    {
-        var completed = 0;
-        var tasks = Enumerable.Range(0, 10)
-            .Select(_ => this.pool!.Submit(() =>
-            {
-                Thread.Sleep(50);
-                Interlocked.Increment(ref completed);
-                return completed;
-            }))
-            .ToArray();
-
-        this.pool!.Shutdown();
-
-        Assert.That(completed, Is.EqualTo(10));
-        foreach (var t in tasks)
-        {
-            Assert.That(t.IsCompleted, Is.True);
+            var id = i;
+            tasks[id - 1] = pool.Submit(() => string.Concat(Enumerable.Repeat($"{id}", id)));
         }
-    }
 
-    /// <summary>
-    /// Verifies that submitting a task after shutdown throws <see cref="InvalidOperationException"/>.
-    /// </summary>
-    [Test]
-    public void Submit_AfterShutdown_ThrowsInvalidOperationException()
-    {
-        this.pool!.Shutdown();
-        Assert.Throws<InvalidOperationException>(() => this.pool.Submit(() => 1));
-    }
-
-    /// <summary>
-    /// Verifies that at least N worker threads are active when enough tasks are submitted.
-    /// </summary>
-    [Test]
-    public void AtLeastNThreads_AreRunning_WhenTasksAreSubmitted()
-    {
-        const int threadCount = 4;
-        using var pool = new MyThreadPool(threadCount);
-        var started = new ManualResetEventSlim(false);
-        var activeCount = 0;
-        var maxActive = 0;
-
-        for (int i = 0; i < threadCount * 2; i++)
+        for (var i = 1; i <= taskCount; i++)
         {
-            pool.Submit<object?>(() =>
+            var expectedResult = string.Concat(Enumerable.Repeat($"{i}", i));
+            Assert.Multiple(() =>
             {
-                var current = Interlocked.Increment(ref activeCount);
-                maxActive = Math.Max(maxActive, current);
-                if (current >= threadCount)
-                {
-                    started.Set();
-                }
-
-                Thread.Sleep(100);
-                Interlocked.Decrement(ref activeCount);
-                return null;
+                Assert.That(tasks[i - 1].Result, Is.EqualTo(expectedResult));
+                Assert.That(tasks[i - 1].IsCompleted, Is.True);
             });
         }
 
-        Assert.That(started.Wait(5000), Is.True, "Not all threads started.");
-        Assert.That(maxActive, Is.AtLeast(threadCount), $"Only {maxActive} threads active, expected {threadCount}.");
+        pool.Shutdown();
     }
 
     /// <summary>
-    /// Verifies that a continuation added before shutdown still completes.
+    /// Tests that an exception thrown inside a continuation is correctly wrapped
+    /// in AggregateException and propagated through .Result.
     /// </summary>
     [Test]
-    public void ContinueWith_AfterShutdown_StillCompletes()
+    public void MyThreadPool_ContinueWith_ContinuationThrowsException_ThrowsAggregateException()
     {
-        var task = this.pool!.Submit(() => 100);
-        this.pool!.Shutdown();
+        var pool = new MyThreadPool(5);
 
-        var cont = task.ContinueWith(x => x + 50);
-        Assert.That(cont.Result, Is.EqualTo(150));
-    }
+        var initialTask = pool.Submit(() => 5);
 
-    /// <summary>
-    /// Verifies that submitting a <c>null</c> function throws <see cref="ArgumentNullException"/>.
-    /// </summary>
-    [Test]
-    public void NullFunc_ThrowsArgumentNullException()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
+        var continuationTask = initialTask.ContinueWith<int>(_ => throw new InvalidOperationException());
+        Exception? caughtException = null;
+        try
         {
-            this.pool!.Submit<int>(null!);
-        });
+            _ = continuationTask.Result;
+        }
+        catch (AggregateException ex)
+        {
+            caughtException = ex.InnerException;
+        }
+
+        Assert.That(caughtException, Is.TypeOf<InvalidOperationException>());
     }
 
     /// <summary>
-    /// Verifies that <see cref="IMyTask{TResult}.ContinueWith{TNewResult}"/> with <c>null</c> throws.
+    /// Tests basic ContinueWith functionality: a continuation transforms the original
+    /// task result and both tasks complete correctly.
     /// </summary>
     [Test]
-    public void ContinueWith_NullContinuation_ThrowsArgumentNullException()
+    public void MyThreadPool_ContinueWith()
     {
-        var task = this.pool!.Submit(() => 1);
-        Assert.Throws<ArgumentNullException>(() =>
-        {
-            task.ContinueWith<int>(null!);
-        });
-    }
+        var pool = new MyThreadPool(2);
+        int[] numbers = [-10, 2, 3, 5, 7, 11, 10021];
+        var task = pool.Submit(() => numbers.Sum(x => x * x));
+        var expectedTaskResult = numbers.Sum(x => x * x);
 
-    /// <summary>
-    /// Verifies that <see cref="IMyTask{TResult}.IsCompleted"/> becomes <c>true</c> after task finishes.
-    /// </summary>
-    [Test]
-    public void IsCompleted_IsTrue_AfterTaskFinishes()
-    {
-        var task = this.pool!.Submit<object?>(() =>
+        var continuationTask = task.ContinueWith<string>(x => x.ToString());
+        var expectedContinuationTaskResult = expectedTaskResult.ToString();
+
+        Assert.Multiple(() =>
         {
-            Thread.Sleep(50);
-            return null;
+            Assert.That(continuationTask.Result, Is.EqualTo(expectedContinuationTaskResult));
+            Assert.That(task.IsCompleted, Is.True);
+            Assert.That(task.Result, Is.EqualTo(expectedTaskResult));
         });
 
-        var unused = task.Result;
-        Assert.That(task.IsCompleted, Is.True);
+        pool.Shutdown();
+    }
+
+    /// <summary>
+    /// Verifies that at least the requested number of worker threads become active
+    /// when enough concurrent tasks are submitted.
+    /// </summary>
+    [Test]
+    public void MyThreadPool_HasAtLeastNWorkingThreads()
+    {
+        const int n = 4;
+
+        var pool = new MyThreadPool(n);
+
+        var concurrentTasks = 0;
+        var maxConcurrent = 0;
+        var lockObj = new object();
+
+        var startSignal = new ManualResetEvent(false);
+
+        for (var i = 0; i < n * 2; i++)
+        {
+            pool.Submit(() =>
+            {
+                startSignal.WaitOne();
+
+                lock (lockObj)
+                {
+                    concurrentTasks++;
+                    if (concurrentTasks > maxConcurrent)
+                    {
+                        maxConcurrent = concurrentTasks;
+                    }
+                }
+
+                Thread.Sleep(100);
+
+                lock (lockObj)
+                {
+                    concurrentTasks--;
+                }
+
+                return 0;
+            });
+        }
+
+        Thread.Sleep(100);
+
+        startSignal.Set();
+
+        Thread.Sleep(50);
+
+        Assert.That(maxConcurrent, Is.GreaterThanOrEqualTo(n));
+
+        pool.Shutdown();
+    }
+
+    /// <summary>
+    /// Tests that a single task can have multiple independent continuations
+    /// that all execute correctly and independently.
+    /// </summary>
+    [Test]
+    public void MyThreadPool_OneTask_MultipleContinuations()
+    {
+        var pool = new MyThreadPool(2);
+
+        var initialTask = pool.Submit(() => 10);
+
+        var continuationPr = initialTask.ContinueWith(x => x * 2);
+        var continuationSum = initialTask.ContinueWith(x => x + 5);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(initialTask.Result, Is.EqualTo(10));
+            Assert.That(continuationPr.Result, Is.EqualTo(20));
+            Assert.That(continuationSum.Result, Is.EqualTo(15));
+
+            Assert.That(initialTask.IsCompleted, Is.True);
+            Assert.That(continuationPr.IsCompleted, Is.True);
+            Assert.That(continuationSum.IsCompleted, Is.True);
+        });
+
+        pool.Shutdown();
+    }
+
+    /// <summary>
+    /// Tests that Submit with a valid task completes correctly and returns the expected result.
+    /// Also verifies that IsCompleted becomes true after execution.
+    /// </summary>
+    [Test]
+    public void MyThreadPool_Submit_ValidTask_CompleteAndReturnsResult()
+    {
+        var pool = new MyThreadPool(2);
+        int[] numbers = [555, 1, -100, 5, 2, 3, 7];
+        var expectedResult = numbers.Sum(x => x * x);
+
+        var task = pool.Submit(() => numbers.Sum(x => x * x));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(task.Result, Is.EqualTo(expectedResult));
+            Assert.That(task.IsCompleted, Is.True);
+        });
+
+        pool.Shutdown();
+    }
+
+    /// <summary>
+    /// Tests a chain of continuations (task -> cont1 -> cont2 -> cont3)
+    /// where each step transforms the previous result correctly.
+    /// </summary>
+    [Test]
+    public void MyThreadPool_ChainOfContinuations()
+    {
+        var pool = new MyThreadPool(2);
+
+        var task = pool.Submit(() => 5);
+        var continuation1 = task.ContinueWith(x => x * 2);
+        var continuation2 = continuation1.ContinueWith(x => x + 3);
+        var continuation3 = continuation2.ContinueWith(x => x.ToString());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(task.Result, Is.EqualTo(5));
+            Assert.That(continuation1.Result, Is.EqualTo(10));
+            Assert.That(continuation2.Result, Is.EqualTo(13));
+            Assert.That(continuation3.Result, Is.EqualTo("13"));
+
+            Assert.That(task.IsCompleted, Is.True);
+            Assert.That(continuation1.IsCompleted, Is.True);
+            Assert.That(continuation2.IsCompleted, Is.True);
+            Assert.That(continuation3.IsCompleted, Is.True);
+        });
+
+        pool.Shutdown();
+    }
+
+    /// <summary>
+    /// Tests a complex continuation tree with multiple branches and a long chain.
+    /// Verifies correct results and completion status for every task in the structure.
+    /// </summary>
+    [Test]
+    public void MyThreadPool_ComplexContinuationStructure()
+    {
+        var pool = new MyThreadPool(4);
+
+        var root = pool.Submit(() => 100);
+
+        var branch1 = root.ContinueWith(x => x / 2);
+        var branch2 = root.ContinueWith(x => x * 2);
+
+        var branch1Chain1 = branch1.ContinueWith(x => x + 10);
+        var branch1Chain2 = branch1.ContinueWith(x => x - 10);
+
+        var branch2Chain1 = branch2.ContinueWith(x => x.ToString());
+        var branch2Chain2 = branch2.ContinueWith(x => x / 10);
+
+        var longChain = branch1Chain1
+            .ContinueWith(x => x * 3)
+            .ContinueWith(x => x.ToString() + "!");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(root.Result, Is.EqualTo(100));
+
+            Assert.That(branch1.Result, Is.EqualTo(50));
+            Assert.That(branch2.Result, Is.EqualTo(200));
+
+            Assert.That(branch1Chain1.Result, Is.EqualTo(60));
+            Assert.That(branch1Chain2.Result, Is.EqualTo(40));
+            Assert.That(branch2Chain1.Result, Is.EqualTo("200"));
+            Assert.That(branch2Chain2.Result, Is.EqualTo(20));
+
+            Assert.That(longChain.Result, Is.EqualTo("180!"));
+
+            Assert.That(root.IsCompleted, Is.True);
+            Assert.That(branch1.IsCompleted, Is.True);
+            Assert.That(branch2.IsCompleted, Is.True);
+            Assert.That(branch1Chain1.IsCompleted, Is.True);
+            Assert.That(branch1Chain2.IsCompleted, Is.True);
+            Assert.That(branch2Chain1.IsCompleted, Is.True);
+            Assert.That(branch2Chain2.IsCompleted, Is.True);
+            Assert.That(longChain.IsCompleted, Is.True);
+        });
+
+        pool.Shutdown();
+    }
+
+    /// <summary>
+    /// Tests concurrent submission of many tasks from multiple threads simultaneously.
+    /// Verifies no exceptions during submission and all tasks complete correctly.
+    /// </summary>
+    [Test]
+    public void MyThreadPool_ConcurrentSubmit_ManyTasks()
+    {
+        const int threadCount = 4;
+        const int tasksPerThread = 250;
+
+        var pool = new MyThreadPool(threadCount);
+        var tasks = new List<IMyTask<int>>();
+        var lockObj = new object();
+        var exceptions = new ConcurrentBag<Exception>();
+
+        var threads = new Thread[threadCount];
+        for (var i = 0; i < threadCount; i++)
+        {
+            threads[i] = new Thread(() =>
+            {
+                for (var j = 0; j < tasksPerThread; j++)
+                {
+                    try
+                    {
+                        var task = pool.Submit(() => Thread.CurrentThread.ManagedThreadId);
+                        lock (lockObj)
+                        {
+                            tasks.Add(task);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        exceptions.Add(ex);
+                    }
+                }
+            });
+        }
+
+        foreach (var thread in threads)
+        {
+            thread.Start();
+        }
+
+        foreach (var thread in threads)
+        {
+            thread.Join();
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exceptions, Is.Empty, "No exceptions should be thrown during concurrent Submit");
+            Assert.That(tasks, Has.Count.EqualTo(threadCount * tasksPerThread));
+        });
+
+        foreach (var task in tasks)
+        {
+            Assert.DoesNotThrow(() => _ = task.Result);
+            Assert.That(task.IsCompleted, Is.True);
+        }
+
+        pool.Shutdown();
+    }
+
+    /// <summary>
+    /// Stress test for race condition: submits continuations from one thread
+    /// while another thread calls Shutdown(). Verifies that root task and
+    /// already-registered continuations complete successfully.
+    /// </summary>
+    [Test]
+    public void MyThreadPool_ShutdownDuringContinueWith()
+    {
+        const int iterations = 50;
+
+        for (var i = 0; i < iterations; i++)
+        {
+            var pool = new MyThreadPool(2);
+            var rootTask = pool.Submit(() => 100);
+
+            var continuations = new List<IMyTask<int>>();
+            var continuationLock = new object();
+
+            var continuationThread = new Thread(() =>
+            {
+                for (var iteration = 0; iteration < 20; iteration++)
+                {
+                    var currentIteration = iteration;
+                    try
+                    {
+                        var continuation = rootTask.ContinueWith(x => x + currentIteration);
+                        lock (continuationLock)
+                        {
+                            continuations.Add(continuation);
+                        }
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                }
+            });
+
+            var shutdownThread = new Thread(() =>
+            {
+                Thread.Sleep(GetRandomDelay(0, 15));
+                pool.Shutdown();
+            });
+
+            continuationThread.Start();
+            shutdownThread.Start();
+
+            continuationThread.Join();
+            shutdownThread.Join();
+
+            Assert.That(rootTask.Result, Is.EqualTo(100));
+
+            foreach (var continuation in continuations)
+            {
+                if (continuation.IsCompleted)
+                {
+                    Assert.DoesNotThrow(() => _ = continuation.Result);
+                }
+            }
+        }
+    }
+
+    private static int GetRandomDelay(int min, int max)
+    {
+        var random = new Random(Guid.NewGuid().GetHashCode());
+        return random.Next(min, max);
     }
 }

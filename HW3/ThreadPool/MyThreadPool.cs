@@ -26,7 +26,7 @@ public sealed class MyThreadPool : IDisposable
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="threadCount"/> is zero or negative.</exception>
     public MyThreadPool(int threadCount)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount); 
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
         this.threads = new Thread[threadCount];
 
         for (int i = 0; i < threadCount; i++)
@@ -75,7 +75,7 @@ public sealed class MyThreadPool : IDisposable
             }
         }
 
-        foreach (var thread in this.threads)
+       foreach (var thread in this.threads)
         {
             thread.Join();
         }
@@ -140,9 +140,8 @@ public sealed class MyThreadPool : IDisposable
                 {
                     action();
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    this.Shutdown();
                     return;
                 }
             }
