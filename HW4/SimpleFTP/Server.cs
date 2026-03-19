@@ -16,7 +16,9 @@ public class Server
 {
     private readonly int port;
     private readonly string rootDirectory;
+    private readonly List<Task> clientTasks = new();
     private TcpListener? listener;
+    private CancellationTokenSource? cancellationTokenSource;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Server"/> class.
@@ -35,10 +37,14 @@ public class Server
     }
 
     /// <summary>
-    /// Starts the server and begins accepting client connections.
+    /// Starts the server asynchronously and begins accepting client connections.
     /// </summary>
-    public void Start()
+    /// <param name="cancellationToken">The token to monitor for cancellation requests (allows graceful shutdown).</param>
+    /// <returns><>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
+        this.cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
         this.listener = new TcpListener(IPAddress.Any, this.port);
         this.listener.Start();
         Console.WriteLine($"Server started on port {this.port}");
@@ -48,16 +54,13 @@ public class Server
         {
             try
             {
-                TcpClient client = this.listener.AcceptTcpClient();
-                Task.Run(() => this.ProcessClient(client));
+                TcpClient client = await this.listener.AcceptTcpClientAsync();
+                var clientTask = Task.Run(() => this.ProcessClient(client));
+                this.clientTasks.Add(clientTask);
             }
             catch (SocketException)
             {
                 break; // Server stopped
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error accepting client: {ex.Message}");
             }
         }
     }
@@ -65,9 +68,18 @@ public class Server
     /// <summary>
     /// Stops the server.
     /// </summary>
-    public void Stop()
+    /// <returns><>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
+    public async Task StopAsync()
     {
+        this.cancellationTokenSource?.Cancel();
         this.listener?.Stop();
+
+        if (this.clientTasks.Count > 0)
+        {
+            await Task.WhenAll(this.clientTasks);
+        }
+
+        this.clientTasks.Clear();
         Console.WriteLine("Server stopped.");
     }
 
@@ -78,7 +90,7 @@ public class Server
     {
         try
         {
-            ClientHandler handler = new ClientHandler(client, this.rootDirectory);
+            ClientHandler handler = new(client, this.rootDirectory);
             handler.Handle();
         }
         catch (Exception ex)

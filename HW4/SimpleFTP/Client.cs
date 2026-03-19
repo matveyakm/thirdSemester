@@ -5,29 +5,17 @@
 namespace SimpleFTP;
 
 using System;
+using System.Drawing;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Represents a simple FTP client that can list directory contents and download files from a server.
 /// </summary>
-public class Client
+public class Client(string host, int port)
 {
-    private readonly string host;
-    private readonly int port;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Client"/> class.
-    /// </summary>
-    /// <param name="host">The hostname or IP address of the server.</param>
-    /// <param name="port">The port number on which the server is listening.</param>
-    public Client(string host, int port)
-    {
-        this.host = host;
-        this.port = port;
-    }
-
     /// <summary>
     /// Sends a request to list the contents of a directory on the server.
     /// </summary>
@@ -36,9 +24,10 @@ public class Client
     /// An array of tuples containing file/directory name and a boolean indicating whether it is a directory.
     /// Returns null if the directory does not exist.
     /// </returns>
-    public (string Name, bool IsDirectory)[]? List(string path)
+    public async Task<(string Name, bool IsDirectory)[]> List(string path)
     {
-        using TcpClient client = new TcpClient(this.host, this.port);
+        using TcpClient client = new();
+        await client.ConnectAsync(host, port);
         using NetworkStream stream = client.GetStream();
 
         string request = $"1 {path}\n";
@@ -46,15 +35,11 @@ public class Client
         stream.Write(requestBytes, 0, requestBytes.Length);
 
         string response = ReadLine(stream);
-        if (string.IsNullOrEmpty(response))
-        {
-            return null;
-        }
 
         string[] parts = response.Split(' ');
         if (!int.TryParse(parts[0], out int count) || count == -1)
         {
-            return null;
+            throw new DirectoryNotFoundException($"Directory '{path}' does not exist on the server.");
         }
 
         var result = new (string, bool)[count];
@@ -72,12 +57,14 @@ public class Client
     /// Downloads a file from the server.
     /// </summary>
     /// <param name="path">The relative path to the file on the server.</param>
+    /// <param name="destination">The stream to write the file content to (must be writable).</param>
     /// <returns>
     /// The file content as a byte array, or null if the file does not exist.
     /// </returns>
-    public byte[]? Get(string path)
+    public async Task Get(string path, Stream destination)
     {
-        using TcpClient client = new TcpClient(this.host, this.port);
+        using TcpClient client = new();
+        await client.ConnectAsync(host, port);
         using NetworkStream stream = client.GetStream();
 
         string request = $"2 {path}\n";
@@ -101,23 +88,23 @@ public class Client
         long size = BitConverter.ToInt64(sizeBytes, 0);
         if (size == -1)
         {
-            return null;
+            throw new FileNotFoundException($"The file '{path}' does not exist on the server.");
         }
 
-        byte[] content = new byte[size];
-        read = 0;
-        while (read < size)
+        byte[] buffer = new byte[8192];
+        long remaining = size;
+        while (remaining > 0)
         {
-            int bytes = stream.Read(content, read, (int)(size - read));
+            int bytesToRead = (int)Math.Min(8192L, remaining);
+            int bytes = stream.Read(buffer, 0, bytesToRead);
             if (bytes == 0)
             {
                 throw new IOException("Connection closed prematurely while reading file content.");
             }
 
-            read += bytes;
+            destination.Write(buffer, 0, bytes);
+            remaining -= bytes;
         }
-
-        return content;
     }
 
     /// <summary>

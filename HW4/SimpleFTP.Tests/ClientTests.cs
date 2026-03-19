@@ -23,7 +23,8 @@ public class ClientTests
 
     private string testDir = string.Empty;
     private Server? server;
-    private Thread? serverThread;
+    private Task? serverTask;
+    private Client? client;
 
     /// <summary>
     /// Initializes the test environment by setting up the server and creating test files.
@@ -41,18 +42,7 @@ public class ClientTests
         File.WriteAllText(Path.Combine(subDir, "TestS.txt"), "Nested file");
 
         this.server = new Server(Port);
-
-        this.serverThread = new Thread(() =>
-        {
-            try
-            {
-                this.server.Start();
-            }
-            catch
-            {
-            }
-        });
-        this.serverThread.Start();
+        this.serverTask = this.server.StartAsync();
 
         int attempts = 50;
         while (attempts-- > 0)
@@ -72,16 +62,25 @@ public class ClientTests
         {
             Assert.Fail("Server did not start.");
         }
+
+        this.client = new Client(Host, Port);
     }
 
     /// <summary>
     /// Cleans up the test environment by stopping the server and deleting test files.
     /// </summary>
+    /// <returns><>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [TearDown]
-    public void TearDown()
+    public async Task TearDown()
     {
-        this.server?.Stop();
-        this.serverThread?.Join(3000);
+        if (this.server != null)
+        {
+            await this.server.StopAsync();
+            if (this.serverTask != null)
+            {
+                await this.serverTask;
+            }
+        }
 
         try
         {
@@ -89,7 +88,7 @@ public class ClientTests
         }
         catch
         {
-    }
+        }
 
         try
         {
@@ -119,11 +118,13 @@ public class ClientTests
     /// <summary>
     /// Tests that the List method returns the correct entries for the root directory.
     /// </summary>
+    /// <returns><>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Test]
-    public void List_RootDirectory_ReturnsCorrectEntries()
+    public async Task List_RootDirectory_ReturnsCorrectEntries()
     {
-        var client = new Client(Host, Port);
-        var entries = client.List(".");
+        Assert.That(this.client, Is.Not.Null);
+
+        var entries = await this.client.List(".");
 
         Assert.That(entries, Is.Not.Null);
         Assert.That(entries!.Length, Is.AtLeast(3));
@@ -135,11 +136,13 @@ public class ClientTests
     /// <summary>
     /// Tests that the List method returns the correct entries for a subdirectory.
     /// </summary>
+    /// <returns><>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Test]
-    public void List_SubDirectory_ReturnsCorrectEntries()
+    public async Task List_SubDirectory_ReturnsCorrectEntries()
     {
-        var client = new Client(Host, Port);
-        var entries = client.List("./TestF");
+        Assert.That(this.client, Is.Not.Null);
+
+        var entries = await this.client.List("./TestF");
 
         Assert.That(entries, Is.Not.Null);
         Assert.That(entries!.Length, Is.EqualTo(1));
@@ -152,37 +155,36 @@ public class ClientTests
     /// </summary>
     [Test]
     public void List_NonExistentDirectory_ReturnsNull()
-    {
-        var client = new Client(Host, Port);
-        var entries = client.List("./NonExistent");
-
-        Assert.That(entries, Is.Null);
-    }
+        => Assert.ThrowsAsync<DirectoryNotFoundException>(async () => await this.client!.List("./NonExistent"));
 
     /// <summary>
     /// Tests that the Get method returns the correct content for an existing file.
     /// </summary>
+    /// <returns><>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Test]
-    public void Get_ExistingFile_ReturnsCorrectContent()
+    public async Task Get_ExistingFile_ReturnsCorrectContent()
     {
-        var client = new Client(Host, Port);
-        byte[]? content = client.Get("./Test1.txt");
+        var ms = new MemoryStream();
+        await this.client!.Get("./Test1.txt", ms);
 
+        byte[] content = ms.ToArray();
         Assert.That(content, Is.Not.Null);
-        Assert.That(Encoding.UTF8.GetString(content!), Is.EqualTo("Content of Test1"));
+        Assert.That(Encoding.UTF8.GetString(content), Is.EqualTo("Content of Test1"));
     }
 
     /// <summary>
     /// Tests that the Get method returns the correct content for a file in a subdirectory.
     /// </summary>
+    /// <returns><>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Test]
-    public void Get_FileInSubdirectory_ReturnsCorrectContent()
+    public async Task Get_FileInSubdirectory_ReturnsCorrectContent()
     {
-        var client = new Client(Host, Port);
-        byte[]? content = client.Get("./TestF/TestS.txt");
+        var ms = new MemoryStream();
+        await this.client!.Get("./TestF/TestS.txt", ms);
 
+        byte[] content = ms.ToArray();
         Assert.That(content, Is.Not.Null);
-        Assert.That(Encoding.UTF8.GetString(content!), Is.EqualTo("Nested file"));
+        Assert.That(Encoding.UTF8.GetString(content), Is.EqualTo("Nested file"));
     }
 
     /// <summary>
@@ -190,34 +192,18 @@ public class ClientTests
     /// </summary>
     [Test]
     public void Get_NonExistentFile_ReturnsNull()
-    {
-        var client = new Client(Host, Port);
-        byte[]? content = client.Get("./Missing.txt");
-
-        Assert.That(content, Is.Null);
-    }
+        => Assert.ThrowsAsync<FileNotFoundException>(async () => await this.client!.Get("./Missing.txt", new MemoryStream()));
 
     /// <summary>
     /// Tests that directory traversal is blocked for the List method.
     /// </summary>
     [Test]
     public void List_DirectoryTraversal_IsBlocked()
-    {
-        var client = new Client(Host, Port);
-        var entries = client.List("../");
-
-        Assert.That(entries, Is.Null);
-    }
+        => Assert.ThrowsAsync<DirectoryNotFoundException>(async () => await this.client!.List("../"));
 
     /// <summary>
     /// Tests that directory traversal is blocked for the Get method.
     /// </summary>
-    [Test]
     public void Get_DirectoryTraversal_IsBlocked()
-    {
-        var client = new Client(Host, Port);
-        byte[]? content = client.Get("../secret.txt");
-
-        Assert.That(content, Is.Null);
-    }
+        => Assert.ThrowsAsync<FileNotFoundException>(async () => await this.client!.Get("../secret.txt", new MemoryStream()));
 }
