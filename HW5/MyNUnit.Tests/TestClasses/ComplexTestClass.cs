@@ -16,28 +16,16 @@ public class ComplexTestClass
     public bool AfterRan;
 
     [BeforeClass]
-    public static void SetupClass()
-    {
-        BeforeClassRan = true;
-    }
+    public static void SetupClass() => BeforeClassRan = true;
 
     [AfterClass]
-    public static void TeardownClass()
-    {
-        AfterClassRan = true;
-    }
+    public static void TeardownClass() => AfterClassRan = true;
 
     [Before]
-    public void Setup()
-    {
-        BeforeRan = true;
-    }
+    public void Setup() => BeforeRan = true;
 
     [After]
-    public void Teardown()
-    {
-        AfterRan = true;
-    }
+    public void Teardown() => AfterRan = true;
 
     [MyTest]
     public void Test1()

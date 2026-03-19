@@ -32,7 +32,7 @@ internal static class AttributeFinder
         }
         catch
         {
-            assemblyFiles = Enumerable.Empty<string>();
+            assemblyFiles = Enumerable.Empty<string>(); //! Ловить абсолютно все исключения — плохая идея, есть исключения, которые могут бросаться в любом месте программы и предполагают специальную обработку.
         }
 
         foreach (var file in assemblyFiles)
@@ -115,6 +115,6 @@ internal static class AttributeFinder
         /// <summary>
         /// Gets or sets the list of test methods.
         /// </summary>
-        public List<MethodInfo> Tests { get; set; } = new();
+        public List<MethodInfo> Tests { get; set; } = new(); //! можно было бы сделать struct record-ом и не писать так много кода
     }
 }
