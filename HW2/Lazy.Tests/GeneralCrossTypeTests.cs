@@ -23,11 +23,12 @@ public class GeneralCrossTypeTests
     public void Get_MultipleCalls_ReturnsSameValue(Type lazyType)
     {
         int callCount = 0;
-        ILazy<string> lazy = CreateLazy( () =>
+        ILazy<string> lazy = CreateLazy(
+            () =>
         {
             callCount++;
             return "test" + callCount;
-        },lazyType);
+        }, lazyType);
 
         string first = lazy.Get();
         string second = lazy.Get();
@@ -67,5 +68,4 @@ public class GeneralCrossTypeTests
     private static ILazy<T> CreateLazy<T>(Func<T> supplier, Type lazyType) =>
         Activator.CreateInstance(lazyType, supplier) as ILazy<T>
                ?? throw new InvalidOperationException($"Failed to create instance of {lazyType.Name}");
-    
 }

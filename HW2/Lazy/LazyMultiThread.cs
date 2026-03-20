@@ -36,6 +36,8 @@ public sealed class LazyMultiThread<T> : ILazy<T>
     /// <inheritdoc />
     public T Get()
     {
+        ArgumentNullException.ThrowIfNull(this.value);
+
         if (this.isComputed)
         {
             return this.value;
