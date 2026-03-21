@@ -2,13 +2,13 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
+namespace MyNUnit;
+
 using System;
 using System.Diagnostics;
 using System.Reflection;
 using MyNUnit.Attributes;
 using MyNUnit.Models;
-
-namespace MyNUnit;
 
 /// <summary>
 /// Executes individual tests and setup/teardown methods.
@@ -29,7 +29,7 @@ internal class TestExecutor
         var result = new TestResult
         {
             TestName = testMethod.Name,
-            Status = TestStatus.Passed
+            Status = TestStatus.Passed,
         };
 
         if (testAttr.Ignore != null)

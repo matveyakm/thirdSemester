@@ -2,13 +2,13 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
+namespace MyNUnit;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MyNUnit.Models;
-
-namespace MyNUnit;
 
 /// <summary>
 /// Runs the tests across multiple classes in parallel.

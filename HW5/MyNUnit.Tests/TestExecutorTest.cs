@@ -2,26 +2,35 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
+namespace MyNUnit.Tests;
+
 using System;
 using System.Reflection;
 using MyNUnit.Models;
 using MyNUnit.Tests.TestClasses;
-using MyNUnit.Attributes;
 using NUnit.Framework;
+using MyTest = MyNUnit.Attributes.TestAttribute;
 
-namespace MyNUnit.Tests;
-
+/// <summary>
+/// Provides unit tests for the <see cref="TestExecutor"/> class, ensuring correct execution of individual test methods.
+/// </summary>
 [TestFixture]
 public class TestExecutorTest
 {
-    private TestExecutor _executor = null!;
+    private TestExecutor executor = null!;
 
+    /// <summary>
+    /// Initializes the test environment before each test.
+    /// </summary>
     [SetUp]
     public void Setup()
     {
-        _executor = new TestExecutor();
+        this.executor = new TestExecutor();
     }
 
+    /// <summary>
+    /// Initializes the test environment before each test.
+    /// </summary>
     [Test]
     public void ExecuteTest_Passes_WhenExpectedExceptionThrown()
     {
@@ -29,11 +38,14 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("ExpectedExceptionTest")!;
 
-        var result = _executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, instance, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
     }
 
+    /// <summary>
+    /// Verifies that the test status is <see cref="TestStatus.Passed"/> when the expected exception is thrown.
+    /// </summary>
     [Test]
     public void ExecuteTest_Fails_WhenNoExceptionButExpected()
     {
@@ -41,12 +53,15 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("NoExceptionButExpected")!;
 
-        var result = _executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, instance, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Failed));
         Assert.That(result.Exception?.Message, Does.Contain("Expected exception"));
     }
 
+    /// <summary>
+    /// Verifies that the test status is <see cref="TestStatus.Failed"/> when no exception is thrown but one was expected.
+    /// </summary>
     [Test]
     public void ExecuteTest_Fails_WhenWrongExceptionType()
     {
@@ -54,11 +69,14 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("WrongExpectedExceptionTest")!;
 
-        var result = _executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, instance, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Failed));
     }
 
+    /// <summary>
+    /// Verifies that the test status is <see cref="TestStatus.Failed"/> when a different exception type is thrown than expected.
+    /// </summary>
     [Test]
     public void ExecuteTest_ReturnsIgnored_WhenIgnoreSet()
     {
@@ -66,12 +84,15 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("IgnoredTest")!;
 
-        var result = _executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, instance, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Ignored));
         Assert.That(result.IgnoreReason, Is.EqualTo("Temporary disabled"));
     }
 
+    /// <summary>
+    /// Verifies that the test status is <see cref="TestStatus.Passed"/> when no exception occurs and none is expected.
+    /// </summary>
     [Test]
     public void ExecuteTest_Passes_WhenNoExceptionAndNoneExpected()
     {
@@ -79,7 +100,7 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("SuccessfulTest")!;
 
-        var result = _executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, instance, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
     }

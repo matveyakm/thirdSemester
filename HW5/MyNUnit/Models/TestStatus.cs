@@ -22,5 +22,5 @@ public enum TestStatus
     /// <summary>
     /// The test was ignored.
     /// </summary>
-    Ignored
+    Ignored,
 }

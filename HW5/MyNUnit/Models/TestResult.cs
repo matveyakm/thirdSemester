@@ -2,9 +2,9 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
-using System;
-
 namespace MyNUnit.Models;
+
+using System;
 
 /// <summary>
 /// Represents the result of a single test.

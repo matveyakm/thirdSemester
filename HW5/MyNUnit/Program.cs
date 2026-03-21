@@ -2,9 +2,9 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
-using System;
-
 namespace MyNUnit;
+
+using System;
 
 /// <summary>
 /// The entry point of the application.

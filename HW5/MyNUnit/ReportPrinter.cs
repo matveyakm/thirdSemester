@@ -2,11 +2,11 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
+namespace MyNUnit;
+
 using System;
 using System.Collections.Generic;
 using MyNUnit.Models;
-
-namespace MyNUnit;
 
 /// <summary>
 /// Provides functionality to print test reports to the console.

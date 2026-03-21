@@ -2,9 +2,9 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
-using System.Collections.Generic;
-
 namespace MyNUnit.Models;
+
+using System.Collections.Generic;
 
 /// <summary>
 /// Represents the results of all tests in a class.

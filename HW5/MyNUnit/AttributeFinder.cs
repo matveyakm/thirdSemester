@@ -19,8 +19,6 @@ internal static class AttributeFinder
     /// <returns>A dictionary where keys are test classes and values are collections of test methods and setup/teardown methods.</returns>
     public static Dictionary<Type, TestClassMethods> FindTestMethods(string directoryPath)
     {
-        var testClasses = new Dictionary<Type, TestClassMethods>();
-
         IEnumerable<string> assemblyFiles;
         try
         {
@@ -43,40 +41,13 @@ internal static class AttributeFinder
             assemblyFiles = Enumerable.Empty<string>();
         }
 
+        var assemblies = new List<Assembly>();
+
         foreach (var file in assemblyFiles)
         {
             try
             {
-                var assembly = Assembly.LoadFrom(file);
-
-                foreach (var type in assembly.GetTypes())
-                {
-                    var testMethods = type.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-                        .Where(m => m.GetCustomAttribute<TestAttribute>() != null)
-                        .ToList();
-
-                    if (testMethods.Count > 0)
-                    {
-                        var methods = new TestClassMethods
-                        {
-                            BeforeClass = type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-                                .FirstOrDefault(m => m.GetCustomAttribute<BeforeClassAttribute>() != null),
-
-                            AfterClass = type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-                                .FirstOrDefault(m => m.GetCustomAttribute<AfterClassAttribute>() != null),
-
-                            Before = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                                .FirstOrDefault(m => m.GetCustomAttribute<BeforeAttribute>() != null),
-
-                            After = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                                .FirstOrDefault(m => m.GetCustomAttribute<AfterAttribute>() != null),
-
-                            Tests = testMethods,
-                        };
-
-                        testClasses[type] = methods;
-                    } //! Здесь бы ещё проверки на правильность тестов и вспомогательных методов. Например, что тестовый метод не статический, ничего не возвращает и не принимает аргументов. Иначе упадёт при запуске теста, с невнятной ошибкой.
-                }
+                assemblies.Add(Assembly.LoadFrom(file));
             }
             catch (BadImageFormatException)
             {
@@ -92,37 +63,125 @@ internal static class AttributeFinder
             }
         }
 
+        return FindTestMethodsInAssemblies(assemblies);
+    }
+
+    /// <summary>
+    /// Finds test classes and methods in the given assemblies (useful for unit testing).
+    /// </summary>
+    /// // <param name="assemblies">The collection of assemblies to scan for test classes and methods.</param>
+    /// <returns>A dictionary where keys are test classes and values are collections of test methods and setup/teardown methods.</returns>
+    internal static Dictionary<Type, TestClassMethods> FindTestMethodsInAssemblies(IEnumerable<Assembly> assemblies)
+    {
+        var testClasses = new Dictionary<Type, TestClassMethods>();
+
+        foreach (var assembly in assemblies)
+        {
+            foreach (var type in assembly.GetTypes())
+            {
+                var testMethods = FindValidTestMethods(type);
+
+                if (testMethods.Count > 0)
+                {
+                    var methods = new TestClassMethods
+                    {
+                        BeforeClass = FindBeforeClassMethod(type),
+                        AfterClass = FindAfterClassMethod(type),
+                        Before = FindBeforeMethod(type),
+                        After = FindAfterMethod(type),
+                        Tests = testMethods,
+                    };
+
+                    testClasses[type] = methods;
+                }
+            }
+        }
+
         return testClasses;
+    }
+
+    private static List<MethodInfo> FindValidTestMethods(Type type)
+    {
+        return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Where(m =>
+                m.GetCustomAttribute<TestAttribute>() != null &&
+                !m.IsStatic &&
+                m.ReturnType == typeof(void) &&
+                m.GetParameters().Length == 0)
+            .ToList();
+    }
+
+    private static MethodInfo? FindBeforeClassMethod(Type type)
+    {
+        return type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(m =>
+                m.GetCustomAttribute<BeforeClassAttribute>() != null &&
+                m.ReturnType == typeof(void) &&
+                m.GetParameters().Length == 0);
+    }
+
+    private static MethodInfo? FindAfterClassMethod(Type type)
+    {
+        return type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(m =>
+                m.GetCustomAttribute<AfterClassAttribute>() != null &&
+                m.ReturnType == typeof(void) &&
+                m.GetParameters().Length == 0);
+    }
+
+    private static MethodInfo? FindBeforeMethod(Type type)
+    {
+        return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(m =>
+                m.GetCustomAttribute<BeforeAttribute>() != null &&
+                m.ReturnType == typeof(void) &&
+                m.GetParameters().Length == 0);
+    }
+
+    private static MethodInfo? FindAfterMethod(Type type)
+    {
+        return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(m =>
+                m.GetCustomAttribute<AfterAttribute>() != null &&
+                m.ReturnType == typeof(void) &&
+                m.GetParameters().Length == 0);
     }
 
     /// <summary>
     /// Represents the methods associated with a test class.
     /// </summary>
-    public class TestClassMethods
+    public record struct TestClassMethods
     {
         /// <summary>
-        /// Gets or sets the BeforeClass method.
+        /// Initializes a new instance of the <see cref="TestClassMethods"/> struct.
         /// </summary>
-        public MethodInfo? BeforeClass { get; set; }
+        public TestClassMethods()
+        {
+        }
 
         /// <summary>
-        /// Gets or sets the AfterClass method.
+        /// Gets the method decorated with the BeforeClass attribute, if any.
         /// </summary>
-        public MethodInfo? AfterClass { get; set; }
+        public MethodInfo? BeforeClass { get; init; }
 
         /// <summary>
-        /// Gets or sets the Before method.
+        /// Gets the method decorated with the AfterClass attribute, if any.
         /// </summary>
-        public MethodInfo? Before { get; set; }
+        public MethodInfo? AfterClass { get; init; }
 
         /// <summary>
-        /// Gets or sets the After method.
+        /// Gets the method decorated with the Before attribute, if any.
         /// </summary>
-        public MethodInfo? After { get; set; }
+        public MethodInfo? Before { get; init; }
 
         /// <summary>
-        /// Gets or sets the list of test methods.
+        /// Gets the method decorated with the After attribute, if any.
         /// </summary>
-        public List<MethodInfo> Tests { get; set; } = new(); //! можно было бы сделать struct record-ом и не писать так много кода
+        public MethodInfo? After { get; init; }
+
+        /// <summary>
+        /// Gets the list of methods decorated with the Test attribute.
+        /// </summary>
+        public List<MethodInfo> Tests { get; init; } = new();
     }
 }
