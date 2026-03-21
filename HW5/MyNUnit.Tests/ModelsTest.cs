@@ -39,8 +39,8 @@ public class ModelsTest
     [Test]
     public void TestClassResult_ContainsTestResults()
     {
-        var classResult = new TestClassResult { ClassName = "MyClass" };
-        classResult.TestResults.Add(new TestResult { TestName = "T1" });
+        var classResult = new TestClassResult("MyClass");
+        classResult.Add(new TestResult { TestName = "T1" });
 
         Assert.That(classResult.ClassName, Is.EqualTo("MyClass"));
         Assert.That(classResult.TestResults, Has.Count.EqualTo(1));

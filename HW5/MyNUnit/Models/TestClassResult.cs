@@ -12,12 +12,36 @@ using System.Collections.Generic;
 public class TestClassResult
 {
     /// <summary>
-    /// Gets or sets the name of the test class.
+    /// The internal list of test results.
     /// </summary>
-    public required string ClassName { get; set; }
+    private readonly List<TestResult> testResults = new();
 
     /// <summary>
-    /// Gets the list of test results.
+    /// Initializes a new instance of the <see cref="TestClassResult"/> class.
     /// </summary>
-    public List<TestResult> TestResults { get; } = new List<TestResult>();
+    /// <param name="className">The name of the test class.</param>
+    /// <exception cref="ArgumentNullException">Thrown when the <paramref name="className"/> is null.</exception>
+    public TestClassResult(string className)
+    {
+        this.ClassName = className ?? throw new ArgumentNullException(nameof(className));
+    }
+
+    /// <summary>
+    /// Gets the name of the test class.
+    /// </summary>
+    public string ClassName { get; init; }
+
+    /// <summary>
+    /// Gets a read-only list of individual test execution results.
+    /// </summary>
+    public IReadOnlyList<TestResult> TestResults => this.testResults.AsReadOnly();
+
+    /// <summary>
+    /// Adds a test result to the collection.
+    /// </summary>
+    /// <param name="result">The <see cref="TestResult"/> to add.</param>
+    internal void Add(TestResult result)
+    {
+        this.testResults.Add(result);
+    }
 }

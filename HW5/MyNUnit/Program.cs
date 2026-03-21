@@ -2,33 +2,18 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
-namespace MyNUnit;
+using MyNUnit;
 
-using System;
-
-/// <summary>
-/// The entry point of the application.
-/// </summary>
-internal static class Program
+if (args.Length == 0)
 {
-    /// <summary>
-    /// Main method to run the test runner.
-    /// </summary>
-    /// <param name="args">Command-line arguments. First argument is the directory path.</param>
-    private static void Main(string[] args)
-    {
-        if (args.Length == 0)
-        {
-            Console.WriteLine("Usage: MyNUnit <directory_path>");
-            return;
-        }
-
-        var directoryPath = args[0];
-
-        var testRunner = new TestRunner();
-        var results = testRunner.RunTests(directoryPath);
-
-        var reportPrinter = new ReportPrinter();
-        reportPrinter.PrintReport(results);
-    }
+    Console.WriteLine("Usage: MyNUnit <directory_path>");
+    return;
 }
+
+var directoryPath = args[0];
+
+var testRunner = new TestRunner();
+var results = testRunner.RunTests(directoryPath);
+
+var reportPrinter = new ReportPrinter();
+reportPrinter.PrintReport(results);

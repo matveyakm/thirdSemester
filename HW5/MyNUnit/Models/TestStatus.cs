@@ -23,4 +23,10 @@ public enum TestStatus
     /// The test was ignored.
     /// </summary>
     Ignored,
+
+    /// <summary>
+    /// Test could not be executed properly due to exception in setup, teardown, Before/After methods,
+    /// constructor, or unexpected runtime error during test execution.
+    /// </summary>
+    Errored,
 }

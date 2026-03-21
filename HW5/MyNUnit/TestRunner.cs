@@ -30,21 +30,52 @@ internal class TestRunner
             var type = testClass.Key;
             var methods = testClass.Value;
 
-            var classResult = new TestClassResult { ClassName = type.FullName! };
+            var classResult = new TestClassResult(type.FullName!);
 
             var executor = new TestExecutor();
 
-            executor.ExecuteStatic(methods.BeforeClass);
+            bool beforeClassOk = executor.ExecuteStatic(methods.BeforeClass);
+
+            if (!beforeClassOk)
+            {
+                foreach (var testMethod in methods.Tests)
+                {
+                    var erroredResult = new TestResult
+                    {
+                        TestName = testMethod.Name,
+                        Status = TestStatus.Errored,
+                        Exception = new Exception($"BeforeClass method failed for class {type.FullName}"),
+                        ExecutionTime = TimeSpan.Zero,
+                    };
+                    classResult.Add(erroredResult);
+                }
+
+                lock (classResults)
+                {
+                    classResults.Add(classResult);
+                }
+
+                return;
+            }
 
             foreach (var testMethod in methods.Tests)
             {
-                var instance = Activator.CreateInstance(type)!;
+                var testResult = executor.ExecuteTest(
+                    testMethod,
+                    type,
+                    methods.Before,
+                    methods.After);
 
-                var testResult = executor.ExecuteTest(testMethod, instance, methods.Before, methods.After);
-                classResult.TestResults.Add(testResult);
+                classResult.Add(testResult);
             }
 
-            executor.ExecuteStatic(methods.AfterClass);
+            bool afterClassOk = executor.ExecuteStatic(methods.AfterClass);
+
+            if (!afterClassOk)
+            {
+                // Можно добавить общее предупреждение к классу, но тесты уже выполнены..
+                // Пускай будет без этого...
+            }
 
             lock (classResults)
             {

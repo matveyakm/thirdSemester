@@ -19,17 +19,18 @@ internal class TestExecutor
     /// Executes a single test method.
     /// </summary>
     /// <param name="testMethod">The test method info.</param>
-    /// <param name="instance">The instance of the test class.</param>
+    /// <param name="testClassType">The type of the test class.</param>
     /// <param name="before">The before method.</param>
     /// <param name="after">The after method.</param>
     /// <returns>The test result.</returns>
-    public TestResult ExecuteTest(MethodInfo testMethod, object instance, MethodInfo? before, MethodInfo? after)
+    public TestResult ExecuteTest(MethodInfo testMethod, Type testClassType, MethodInfo? before, MethodInfo? after) //! Замечание? Для каждого метода надо создавать свой экземпляр, так что было бы разумнее не принимать его в качестве аргумента, а создавать прямо здесь.
     {
-        var testAttr = testMethod.GetCustomAttribute<TestAttribute>()!;
+        var testAttr = testMethod.GetCustomAttribute<TestAttribute>() ?? throw new InvalidOperationException("Method must have [Test] attribute");
         var result = new TestResult
         {
             TestName = testMethod.Name,
             Status = TestStatus.Passed,
+            ExecutionTime = TimeSpan.Zero,
         };
 
         if (testAttr.Ignore != null)
@@ -41,61 +42,98 @@ internal class TestExecutor
 
         var stopwatch = Stopwatch.StartNew();
 
+        Exception? caught = null;
+        var instance = Activator.CreateInstance(testClassType)!;
+
         try
         {
             before?.Invoke(instance, null);
             testMethod.Invoke(instance, null);
-            after?.Invoke(instance, null);
-
-            if (testAttr.Expected != null)
-            {
-                result.Status = TestStatus.Failed;
-                result.Exception = new Exception($"Expected exception of type {testAttr.Expected} but none was thrown.");
-            }
         }
-        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        catch (TargetInvocationException tie) when (tie.InnerException != null)
         {
-            var inner = ex.InnerException;
-            if (testAttr.Expected != null && inner.GetType() == testAttr.Expected)
-            {
-                after?.Invoke(instance, null);
-            }
-            else
-            {
-                result.Status = TestStatus.Failed;
-                result.Exception = inner;
-            }
+            caught = tie.InnerException;
         }
         catch (Exception ex)
         {
-            result.Status = TestStatus.Failed;
-            result.Exception = ex;
+            caught = ex;
         }
-        finally
+
+        if (caught != null)
         {
-            stopwatch.Stop();
-            result.ExecutionTime = stopwatch.Elapsed;
+            if (testAttr.Expected != null && caught.GetType() == testAttr.Expected)
+            {
+                result.Status = TestStatus.Passed;
+            }
+            else
+            {
+                result.Status = TestStatus.Errored;
+                result.Exception = caught;
+            }
         }
+        else if (testAttr.Expected != null)
+        {
+            result.Status = TestStatus.Failed;
+            result.Exception = new Exception($"Expected exception of type {testAttr.Expected.FullName} but none was thrown.");
+        }
+
+        if (after != null)
+        {
+            try
+            {
+                after.Invoke(instance, null);
+            }
+            catch (TargetInvocationException tie) when (tie.InnerException != null)
+            {
+                if (result.Status is TestStatus.Passed or TestStatus.Failed)
+                {
+                    result.Status = TestStatus.Errored;
+                    result.Exception ??= tie.InnerException;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (result.Status is TestStatus.Passed or TestStatus.Failed)
+                {
+                    result.Status = TestStatus.Errored;
+                    result.Exception ??= ex;
+                }
+            }
+        }
+
+        stopwatch.Stop();
+        result.ExecutionTime = stopwatch.Elapsed;
 
         return result;
     }
 
     /// <summary>
-    /// Executes a static setup or teardown method.
+    /// Executes a static method (BeforeClass / AfterClass).
+    /// Returns true if executed successfully, false if exception occurred.
     /// </summary>
-    /// <param name="method">The method to execute.</param>
-    public void ExecuteStatic(MethodInfo? method)
+    public bool ExecuteStatic(MethodInfo? method)
     {
-        if (method != null)
+        if (method == null)
         {
-            try
-            {
-                method.Invoke(null, null);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in {method.Name}: {ex.Message}");
-            }
+            return true;
+        }
+
+        try
+        {
+            method.Invoke(null, null);
+            return true;
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException != null)
+        {
+            Console.Error.WriteLine(
+                $"Error in {method.DeclaringType?.Name}.{method.Name}: {tie.InnerException.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(
+                $"Error in {method.DeclaringType?.Name}.{method.Name}: {ex.Message}");
+            return false;
         }
     }
 }

@@ -38,7 +38,7 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("ExpectedExceptionTest")!;
 
-        var result = this.executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, type, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
     }
@@ -53,14 +53,14 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("NoExceptionButExpected")!;
 
-        var result = this.executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, type, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Failed));
         Assert.That(result.Exception?.Message, Does.Contain("Expected exception"));
     }
 
     /// <summary>
-    /// Verifies that the test status is <see cref="TestStatus.Failed"/> when no exception is thrown but one was expected.
+    /// Verifies that the test status is <see cref="TestStatus.Errored"/> when no exception is thrown but one was expected.
     /// </summary>
     [Test]
     public void ExecuteTest_Fails_WhenWrongExceptionType()
@@ -69,9 +69,9 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("WrongExpectedExceptionTest")!;
 
-        var result = this.executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, type, null, null);
 
-        Assert.That(result.Status, Is.EqualTo(TestStatus.Failed));
+        Assert.That(result.Status, Is.EqualTo(TestStatus.Errored));
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("IgnoredTest")!;
 
-        var result = this.executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, type, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Ignored));
         Assert.That(result.IgnoreReason, Is.EqualTo("Temporary disabled"));
@@ -100,7 +100,7 @@ public class TestExecutorTest
         var instance = Activator.CreateInstance(type)!;
         var method = type.GetMethod("SuccessfulTest")!;
 
-        var result = this.executor.ExecuteTest(method, instance, null, null);
+        var result = this.executor.ExecuteTest(method, type, null, null);
 
         Assert.That(result.Status, Is.EqualTo(TestStatus.Passed));
     }
