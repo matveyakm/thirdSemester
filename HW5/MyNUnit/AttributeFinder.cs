@@ -2,14 +2,10 @@
 // Copyright (c) matveyakm. All rights reserved.
 // </copyright>
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+namespace MyNUnit;
+
 using System.Reflection;
 using MyNUnit.Attributes;
-
-namespace MyNUnit;
 
 /// <summary>
 /// Provides functionality to find and collect test-related methods from assemblies.
@@ -30,9 +26,21 @@ internal static class AttributeFinder
         {
             assemblyFiles = Directory.GetFiles(directoryPath, "*.dll", SearchOption.TopDirectoryOnly);
         }
-        catch
+        catch (ArgumentException)
         {
-            assemblyFiles = Enumerable.Empty<string>(); //! Ловить абсолютно все исключения — плохая идея, есть исключения, которые могут бросаться в любом месте программы и предполагают специальную обработку.
+            assemblyFiles = Enumerable.Empty<string>();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            assemblyFiles = Enumerable.Empty<string>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            assemblyFiles = Enumerable.Empty<string>();
+        }
+        catch (IOException)
+        {
+            assemblyFiles = Enumerable.Empty<string>();
         }
 
         foreach (var file in assemblyFiles)
@@ -63,11 +71,11 @@ internal static class AttributeFinder
                             After = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                                 .FirstOrDefault(m => m.GetCustomAttribute<AfterAttribute>() != null),
 
-                            Tests = testMethods
+                            Tests = testMethods,
                         };
 
                         testClasses[type] = methods;
-                    }
+                    } //! Здесь бы ещё проверки на правильность тестов и вспомогательных методов. Например, что тестовый метод не статический, ничего не возвращает и не принимает аргументов. Иначе упадёт при запуске теста, с невнятной ошибкой.
                 }
             }
             catch (BadImageFormatException)

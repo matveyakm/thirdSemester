@@ -17,4 +17,8 @@
   <ItemGroup>
     <AdditionalFiles Include="stylecop.json" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyNUnit.Attributes\MyNUnit.Attributes.csproj" />
+  </ItemGroup>
 </Project>
