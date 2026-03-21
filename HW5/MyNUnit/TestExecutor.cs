@@ -23,7 +23,7 @@ internal class TestExecutor
     /// <param name="before">The before method.</param>
     /// <param name="after">The after method.</param>
     /// <returns>The test result.</returns>
-    public TestResult ExecuteTest(MethodInfo testMethod, Type testClassType, MethodInfo? before, MethodInfo? after) //! Замечание? Для каждого метода надо создавать свой экземпляр, так что было бы разумнее не принимать его в качестве аргумента, а создавать прямо здесь.
+    public TestResult ExecuteTest(MethodInfo testMethod, Type testClassType, MethodInfo? before, MethodInfo? after)
     {
         var testAttr = testMethod.GetCustomAttribute<TestAttribute>() ?? throw new InvalidOperationException("Method must have [Test] attribute");
         var result = new TestResult
