@@ -30,12 +30,11 @@ interface RunDetailModalProps {
 
 export default function RunDetailModal({ runId, onClose }: RunDetailModalProps) {
   const [data, setData] = useState<TestRunResultDto | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!runId) return;
 
-    setLoading(true);
     axios
       .get<TestRunResultDto>(`/api/runs/${runId}`)
       .then((res) => setData(res.data))
