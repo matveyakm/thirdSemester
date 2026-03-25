@@ -7,6 +7,7 @@ namespace MyNUnit;
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using System.Threading.Tasks;
 using MyNUnit.Attributes;
 using MyNUnit.Models;
 
@@ -48,7 +49,18 @@ internal class TestExecutor
         try
         {
             before?.Invoke(instance, null);
-            testMethod.Invoke(instance, null);
+
+            var isAsync = testMethod.ReturnType == typeof(Task);
+            if (isAsync)
+            {
+                var task = (Task?)testMethod.Invoke(instance, null);
+                if (task != null)
+                    task.Wait();
+            }
+            else
+            {
+                testMethod.Invoke(instance, null);
+            }
         }
         catch (TargetInvocationException tie) when (tie.InnerException != null)
         {

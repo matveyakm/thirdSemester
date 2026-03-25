@@ -106,7 +106,7 @@ internal static class AttributeFinder
             .Where(m =>
                 m.GetCustomAttribute<TestAttribute>() != null &&
                 !m.IsStatic &&
-                m.ReturnType == typeof(void) &&
+                (m.ReturnType == typeof(void) || m.ReturnType == typeof(Task)) &&
                 m.GetParameters().Length == 0)
             .ToList();
     }

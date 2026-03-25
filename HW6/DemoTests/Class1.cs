@@ -22,6 +22,20 @@ public class DemoTestClass
         Console.WriteLine("Тест прошёл успешно");
     }
 
+    [Test]
+    public void Test_Passed2()
+    {
+        Console.WriteLine("Тест прошёл успешно2");
+    }
+
+    [Test]
+    public async Task Test_Passed_But_Used_Much_Time()
+    {
+        await Task.Delay(5000);
+        Console.WriteLine("Тест прошёл успешно2");
+    }
+
+
     [Test(Ignore = "Этот тест пока не готов")]
     public void Test_Ignored() { }
 
