@@ -1,49 +1,42 @@
-using System.Text.Json;
-using MyNUnit;
-using MyNUnit.Models;
+// <copyright file="TestRunService.cs" company="matveyakm">
+// Copyright (c) matveyakm. All rights reserved.
+// </copyright>
 
 namespace MyNUnit.Web.Services;
 
-public class TestRunService
+using System.Text.Json;
+using MyNUnit;
+using MyNUnit.Models;
+using MyNUnit.Web.Models.Dtos;
+
+/// <summary>
+/// Provides test run execution and history operations.
+/// </summary>
+public class TestRunService : ITestRunService
 {
-    private readonly string _basePath;
-    private readonly string _uploadsDir;
-    private readonly string _historyDir;
+    private readonly string historyDir;
+    private readonly IFileStorage fileStorage;
 
-    public TestRunService(IWebHostEnvironment env)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TestRunService"/> class.
+    /// </summary>
+    /// <param name="fileStorage">The file storage service.</param>
+    /// <param name="env">The web host environment.</param>
+    public TestRunService(IFileStorage fileStorage, IWebHostEnvironment env)
     {
-        _basePath = env.ContentRootPath;
-        _uploadsDir = Path.Combine(_basePath, "Uploads");
-        _historyDir = Path.Combine(_basePath, "History");
-
-        Directory.CreateDirectory(_uploadsDir);
-        Directory.CreateDirectory(_historyDir);
+        this.fileStorage = fileStorage;
+        this.historyDir = Path.Combine(env.ContentRootPath, "History");
+        Directory.CreateDirectory(this.historyDir);
     }
 
-    public async Task<string> SaveAssembliesAsync(IFormFileCollection files)
+    /// <inheritdoc />
+    public Task<TestRunResultDto> ExecuteTestsAsync(string runId)
     {
-        var runId = Guid.NewGuid().ToString("N");
-        var runDir = Path.Combine(_uploadsDir, runId);
-        Directory.CreateDirectory(runDir);
-
-        foreach (var file in files)
+        var runDir = this.fileStorage.GetUploadsPath(runId);
+        if (runDir == null)
         {
-            if (string.IsNullOrEmpty(file.FileName) || !file.FileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var targetPath = Path.Combine(runDir, file.FileName);
-            await using var stream = new FileStream(targetPath, FileMode.Create);
-            await file.CopyToAsync(stream);
-        }
-
-        return runId;
-    }
-
-    public async Task<TestRunResultDto> ExecuteTestsAsync(string runId)
-    {
-        var runDir = Path.Combine(_uploadsDir, runId);
-        if (!Directory.Exists(runDir))
             throw new DirectoryNotFoundException($"Директория прогона не найдена: {runId}");
+        }
 
         var runner = new TestRunner();
         var classResults = runner.RunTests(runDir);
@@ -57,7 +50,7 @@ public class TestRunService
             Passed = classResults.Sum(cr => cr.TestResults.Count(t => t.Status == TestStatus.Passed)),
             Failed = classResults.Sum(cr => cr.TestResults.Count(t => t.Status == TestStatus.Failed)),
             Errored = classResults.Sum(cr => cr.TestResults.Count(t => t.Status == TestStatus.Errored)),
-            Ignored = classResults.Sum(cr => cr.TestResults.Count(t => t.Status == TestStatus.Ignored))
+            Ignored = classResults.Sum(cr => cr.TestResults.Count(t => t.Status == TestStatus.Ignored)),
         };
 
         var dtoClassResults = classResults.Select(cr => new TestClassResultDto
@@ -70,27 +63,27 @@ public class TestRunService
                 ExecutionTimeMs = tr.ExecutionTime.TotalMilliseconds,
                 Message = tr.Exception?.Message,
                 StackTrace = tr.Exception?.StackTrace,
-                IgnoreReason = tr.IgnoreReason
-            }).ToList()
+                IgnoreReason = tr.IgnoreReason,
+            }).ToList(),
         }).ToList();
 
         var fullResult = new TestRunResultDto
         {
             Summary = summary,
-            ClassResults = dtoClassResults
+            ClassResults = dtoClassResults,
         };
 
-        // Сохраняем в файл
-        var jsonPath = Path.Combine(_historyDir, $"{runId}.json");
+        var jsonPath = Path.Combine(this.historyDir, $"{runId}.json");
         var json = JsonSerializer.Serialize(fullResult, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(jsonPath, json);
+        File.WriteAllText(jsonPath, json);
 
-        return fullResult;
+        return Task.FromResult(fullResult);
     }
 
+    /// <inheritdoc />
     public List<RunSummaryDto> GetHistory()
     {
-        var files = Directory.GetFiles(_historyDir, "*.json");
+        var files = Directory.GetFiles(this.historyDir, "*.json");
         var results = new List<RunSummaryDto>();
 
         foreach (var file in files)
@@ -100,56 +93,28 @@ public class TestRunService
                 var json = File.ReadAllText(file);
                 var full = JsonSerializer.Deserialize<TestRunResultDto>(json);
                 if (full?.Summary != null)
+                {
                     results.Add(full.Summary);
+                }
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         return results.OrderByDescending(r => r.Timestamp).ToList();
     }
 
+    /// <inheritdoc />
     public TestRunResultDto? GetRunDetails(string runId)
     {
-        var path = Path.Combine(_historyDir, $"{runId}.json");
-        if (!File.Exists(path)) return null;
+        var path = Path.Combine(this.historyDir, $"{runId}.json");
+        if (!File.Exists(path))
+        {
+            return null;
+        }
 
         var json = File.ReadAllText(path);
         return JsonSerializer.Deserialize<TestRunResultDto>(json);
     }
-}
-
-// ====================== DTO ======================
-
-public record TestRunResultDto
-{
-    public required RunSummaryDto Summary { get; init; }
-    public required List<TestClassResultDto> ClassResults { get; init; }
-}
-
-public record RunSummaryDto
-{
-    public required string RunId { get; init; }
-    public required DateTime Timestamp { get; init; }
-    public required int AssemblyCount { get; init; }
-    public required int TotalTests { get; init; }
-    public required int Passed { get; init; }
-    public required int Failed { get; init; }
-    public required int Errored { get; init; }
-    public required int Ignored { get; init; }
-}
-
-public record TestClassResultDto
-{
-    public required string ClassName { get; init; }
-    public required List<TestResultDto> TestResults { get; init; }
-}
-
-public record TestResultDto
-{
-    public required string TestName { get; init; }
-    public required string Status { get; init; }
-    public required double ExecutionTimeMs { get; init; }
-    public string? Message { get; init; }
-    public string? StackTrace { get; init; }
-    public string? IgnoreReason { get; init; }
 }

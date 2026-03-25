@@ -1,68 +1,93 @@
-using Microsoft.AspNetCore.Mvc;
-using MyNUnit.Web.Services;
+// <copyright file="TestRunsController.cs" company="matveyakm">
+// Copyright (c) matveyakm. All rights reserved.
+// </copyright>
 
 namespace MyNUnit.Web.Controllers;
 
+using Microsoft.AspNetCore.Mvc;
+using MyNUnit.Web.Services;
+
+/// <summary>
+/// Controller for managing test runs.
+/// </summary>
 [ApiController]
 [Route("api/runs")]
 public class TestRunsController : ControllerBase
 {
-    private readonly TestRunService _service;
+    private readonly IFileStorage fileStorage;
+    private readonly ITestRunService testRunService;
 
-    public TestRunsController(TestRunService service)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TestRunsController"/> class.
+    /// </summary>
+    /// <param name="fileStorage">The file storage service.</param>
+    /// <param name="testRunService">The test run service.</param>
+    public TestRunsController(IFileStorage fileStorage, ITestRunService testRunService)
     {
-        _service = service;
+        this.fileStorage = fileStorage;
+        this.testRunService = testRunService;
     }
 
     /// <summary>
-    /// Загрузка .dll файлов
+    /// Upload .dll files.
     /// </summary>
+    /// <param name="files">The files to upload.</param>
+    /// <returns>The run ID.</returns>
     [HttpPost("upload")]
     public async Task<IActionResult> Upload([FromForm] IFormFileCollection files)
     {
         if (files == null || files.Count == 0)
-            return BadRequest("Не переданы файлы");
+        {
+            return this.BadRequest("Не переданы файлы");
+        }
 
-        var runId = await _service.SaveAssembliesAsync(files);
-        return Ok(new { runId });
+        var runId = await this.fileStorage.SaveAssembliesAsync(files);
+        return this.Ok(new { runId });
     }
 
     /// <summary>
-    /// Запуск тестов по runId
+    /// Execute tests by run ID.
     /// </summary>
+    /// <param name="runId">The run ID.</param>
+    /// <returns>The test results.</returns>
     [HttpPost("{runId}/execute")]
     public async Task<IActionResult> Execute(string runId)
     {
         try
         {
-            var result = await _service.ExecuteTestsAsync(runId);
-            return Ok(result);
+            var result = await this.testRunService.ExecuteTestsAsync(runId);
+            return this.Ok(result);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { error = ex.Message });
+            return this.StatusCode(500, new { error = ex.Message });
         }
     }
 
     /// <summary>
-    /// Список всех прогонов (summary)
+    /// Get list of all runs (summary).
     /// </summary>
+    /// <returns>List of run summaries.</returns>
     [HttpGet]
     public IActionResult GetHistory()
     {
-        return Ok(_service.GetHistory());
+        return this.Ok(this.testRunService.GetHistory());
     }
 
     /// <summary>
-    /// Детали конкретного прогона
+    /// Get details of a specific run.
     /// </summary>
+    /// <param name="runId">The run ID.</param>
+    /// <returns>The run details.</returns>
     [HttpGet("{runId}")]
     public IActionResult GetRun(string runId)
     {
-        var result = _service.GetRunDetails(runId);
+        var result = this.testRunService.GetRunDetails(runId);
         if (result == null)
-            return NotFound();
+        {
+            return this.NotFound();
+        }
 
-        return Ok(result);
+        return this.Ok(result);
     }
 }
