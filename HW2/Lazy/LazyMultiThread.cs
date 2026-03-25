@@ -18,8 +18,9 @@ public sealed class LazyMultiThread<T> : ILazy<T>
 {
     private readonly Lock syncRoot = new();
     private Func<T>? supplier;
-    private T? value = default!;
+    private T? value;
     private volatile bool isComputed;
+    private Exception? exception;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LazyMultiThread{T}"/> class.
@@ -36,25 +37,50 @@ public sealed class LazyMultiThread<T> : ILazy<T>
     /// <inheritdoc />
     public T Get()
     {
-        ArgumentNullException.ThrowIfNull(this.value);
-
         if (this.isComputed)
         {
-            return this.value;
+            if (this.exception is not null)
+            {
+                throw this.exception;
+            }
+
+            var v = this.value;
+            if (v is not null)
+            {
+                return v;
+            }
         }
 
         lock (this.syncRoot)
         {
             if (this.isComputed)
             {
-                return this.value;
+                if (this.exception is not null)
+                {
+                    throw this.exception;
+                }
+
+                var v = this.value;
+                if (v is not null)
+                {
+                    return v;
+                }
             }
 
-            this.value = this.supplier!();
-            this.supplier = null;
-            this.isComputed = true;
-
-            return this.value;
+            try
+            {
+                var computed = this.supplier!();
+                this.value = computed;
+                this.supplier = null;
+                this.isComputed = true;
+                return computed;
+            }
+            catch (Exception ex)
+            {
+                this.exception = ex;
+                this.isComputed = true;
+                throw;
+            }
         }
     }
 }

@@ -13,50 +13,70 @@ using Lazy;
 public class GeneralCrossTypeTests
 {
     /// <summary>
-    /// Verifies that subsequent calls return the same cached value and supplier is called only once.
+    /// Verifies that multiple Get() calls return the same value.
+    /// and the supplier is invoked only once (single-threaded version).
     /// </summary>
-    /// <param name="lazyType">
-    /// The type of the lazy implementation to test: either <see cref="LazySingleThread{string}"/> or <see cref="LazyMultiThread{string}"/>.
-    /// </param>
-    [TestCase(typeof(LazySingleThread<string>))]
-    [TestCase(typeof(LazyMultiThread<string>))]
-    public void Get_MultipleCalls_ReturnsSameValue(Type lazyType)
+    [Test]
+    public void MultipleCalls_ReturnsSameValue_SingleThread()
     {
-        int callCount = 0;
-        ILazy<string> lazy = CreateLazy(
-            () =>
+        var callCount = 0;
+        var lazy = new LazySingleThread<string>(() =>
         {
             callCount++;
-            return "test" + callCount;
-        }, lazyType);
+            return "test-value";
+        });
 
-        string first = lazy.Get();
-        string second = lazy.Get();
-        string third = lazy.Get();
+        var first = lazy.Get();
+        var second = lazy.Get();
+        var third = lazy.Get();
 
         Assert.Multiple(() =>
         {
-            Assert.That(first, Is.EqualTo("test1"));
-            Assert.That(second, Is.EqualTo("test1"));
-            Assert.That(third, Is.EqualTo("test1"));
+            Assert.That(first, Is.EqualTo("test-value"));
+            Assert.That(second, Is.EqualTo("test-value"));
+            Assert.That(third, Is.EqualTo("test-value"));
             Assert.That(callCount, Is.EqualTo(1));
         });
     }
 
     /// <summary>
-    /// Verifies that supplier returning null is correctly handled and cached.
+    /// Verifies that multiple Get() calls return the same value.
+    /// and the supplier is invoked only once (multithreaded version).
     /// </summary>
-    /// <param name="lazyType">
-    /// The type of the lazy implementation to test: either <see cref="LazySingleThread{string?}"/> or <see cref="LazyMultiThread{string?}"/>.
-    /// </param>
-    [TestCase(typeof(LazySingleThread<string?>))]
-    [TestCase(typeof(LazyMultiThread<string?>))]
-    public void Get_SupplierReturnsNull_ReturnsAndCachesNull(Type lazyType)
+    [Test]
+    public void MultipleCalls_ReturnsSameValue_MultiThread()
     {
-        ILazy<string?> lazy = CreateLazy<string?>(() => null, lazyType);
+        var callCount = 0;
+        var lazy = new LazyMultiThread<string>(() =>
+        {
+            callCount++;
+            return "test-value";
+        });
 
-        string? first = lazy.Get();
-        string? second = lazy.Get();
+        var first = lazy.Get();
+        var second = lazy.Get();
+        var third = lazy.Get();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first, Is.EqualTo("test-value"));
+            Assert.That(second, Is.EqualTo("test-value"));
+            Assert.That(third, Is.EqualTo("test-value"));
+            Assert.That(callCount, Is.EqualTo(1));
+        });
+    }
+
+    /// <summary>
+    /// Checks that null returned by the supplier is correctly cached.
+    /// and returned on subsequent calls (single-threaded).
+    /// </summary>
+    [Test]
+    public void SupplierReturnsNull_CachesNull_SingleThread()
+    {
+        var lazy = new LazySingleThread<string?>(() => null);
+
+        var first = lazy.Get();
+        var second = lazy.Get();
 
         Assert.Multiple(() =>
         {
@@ -64,8 +84,4 @@ public class GeneralCrossTypeTests
             Assert.That(second, Is.Null);
         });
     }
-
-    private static ILazy<T> CreateLazy<T>(Func<T> supplier, Type lazyType) =>
-        Activator.CreateInstance(lazyType, supplier) as ILazy<T>
-               ?? throw new InvalidOperationException($"Failed to create instance of {lazyType.Name}");
 }

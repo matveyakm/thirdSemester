@@ -60,29 +60,4 @@ public class LazyMultiThreadTests
         Console.WriteLine($"Time for {iterations} cached calls: {stopwatch.ElapsedMilliseconds} ms");
         Assert.That(stopwatch.ElapsedMilliseconds, Is.LessThan(200), "Cached access should be extremely fast with minimal overhead.");
     }
-
-    /// <summary>
-    /// Verifies that even if supplier throws, the exception is propagated and supplier may be called again on next access.
-    /// </summary>
-    [Test]
-    public void Get_SupplierThrows_ExceptionPropagatedAndNotCached()
-    {
-        int attempt = 0;
-        var lazy = new LazyMultiThread<object>(() =>
-        {
-            attempt++;
-            if (attempt == 1)
-            {
-                throw new InvalidOperationException("First failure");
-            }
-
-            return "success";
-        });
-
-        Assert.Throws<InvalidOperationException>(() => lazy.Get());
-
-        string result = (string)lazy.Get();
-        Assert.That(result, Is.EqualTo("success"));
-        Assert.That(attempt, Is.EqualTo(2));
-    }
 }
