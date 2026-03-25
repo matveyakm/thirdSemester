@@ -15,6 +15,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import axios from 'axios';
+import type { TestRunResultDto, UploadResponse, ApiError } from '../types/api';
 
 interface UploadSectionProps {
   onRunCompleted: () => void;
@@ -25,7 +26,7 @@ export default function UploadSection({ onRunCompleted }: UploadSectionProps) {
   const [uploading, setUploading] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<TestRunResultDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,10 +51,11 @@ export default function UploadSection({ onRunCompleted }: UploadSectionProps) {
     files.forEach((file) => formData.append('files', file));
 
     try {
-      const res = await axios.post('/api/runs/upload', formData); // ← через proxy
+      const res = await axios.post<UploadResponse>('/api/runs/upload', formData);
       setRunId(res.data.runId);
-    } catch (err: any) {
-      setError(err.response?.data?.title || 'Ошибка загрузки');
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: ApiError } };
+      setError(axiosError.response?.data?.error || 'Ошибка загрузки');
     } finally {
       setUploading(false);
     }
@@ -67,11 +69,12 @@ export default function UploadSection({ onRunCompleted }: UploadSectionProps) {
     setResult(null);
 
     try {
-      const res = await axios.post(`/api/runs/${runId}/execute`);
+      const res = await axios.post<TestRunResultDto>(`/api/runs/${runId}/execute`);
       setResult(res.data);
-      onRunCompleted(); // обновляем историю
-    } catch (err: any) {
-      setError(err.response?.data?.title || 'Ошибка выполнения тестов');
+      onRunCompleted();
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: ApiError } };
+      setError(axiosError.response?.data?.error || 'Ошибка выполнения тестов');
     } finally {
       setRunning(false);
     }
@@ -83,7 +86,6 @@ export default function UploadSection({ onRunCompleted }: UploadSectionProps) {
         Загрузить сборки и запустить тесты
       </Typography>
 
-      {/* Зона drag & drop */}
       <Box
         sx={{
           border: '2px dashed #aaa',
@@ -114,7 +116,6 @@ export default function UploadSection({ onRunCompleted }: UploadSectionProps) {
         </Typography>
       </Box>
 
-      {/* Список выбранных файлов */}
       {files.length > 0 && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle1" gutterBottom>
@@ -137,7 +138,6 @@ export default function UploadSection({ onRunCompleted }: UploadSectionProps) {
         </Box>
       )}
 
-      {/* Кнопки действий */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <Button
           variant="contained"
@@ -166,7 +166,6 @@ export default function UploadSection({ onRunCompleted }: UploadSectionProps) {
 
       {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
 
-      {/* Показываем результат сразу под формой */}
       {result && (
         <Box sx={{ mt: 5 }}>
           <Typography variant="h6" gutterBottom color="success.main">

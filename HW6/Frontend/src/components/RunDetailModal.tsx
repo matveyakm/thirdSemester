@@ -1,4 +1,3 @@
-// Frontend/src/components/RunDetailModal.tsx
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -22,20 +21,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import axios from 'axios';
-
-interface TestResult {
-  testName: string;
-  status: string;
-  executionTimeMs: number;
-  message?: string;
-  stackTrace?: string;
-  ignoreReason?: string;
-}
-
-interface ClassResult {
-  className: string;
-  testResults: TestResult[];
-}
+import type { TestRunResultDto } from '../types/api';
 
 interface RunDetailModalProps {
   runId: string | null;
@@ -43,7 +29,7 @@ interface RunDetailModalProps {
 }
 
 export default function RunDetailModal({ runId, onClose }: RunDetailModalProps) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<TestRunResultDto | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,7 +37,7 @@ export default function RunDetailModal({ runId, onClose }: RunDetailModalProps) 
 
     setLoading(true);
     axios
-      .get(`/api/runs/${runId}`)
+      .get<TestRunResultDto>(`/api/runs/${runId}`)
       .then((res) => setData(res.data))
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
@@ -70,7 +56,6 @@ export default function RunDetailModal({ runId, onClose }: RunDetailModalProps) 
           <Typography>Загрузка...</Typography>
         ) : (
           <>
-            {/* Общая статистика */}
             <Box sx={{ mb: 4, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
               <Chip label={`Total: ${data.summary.totalTests}`} />
               <Chip label={`Passed: ${data.summary.passed}`} color="success" />
@@ -79,8 +64,7 @@ export default function RunDetailModal({ runId, onClose }: RunDetailModalProps) 
               <Chip label={`Ignored: ${data.summary.ignored}`} color="info" />
             </Box>
 
-            {/* Список классов */}
-            {data.classResults.map((cls: ClassResult, index: number) => (
+            {data.classResults.map((cls, index) => (
               <Accordion key={index} defaultExpanded={index === 0}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                   <Typography variant="h6">{cls.className}</Typography>

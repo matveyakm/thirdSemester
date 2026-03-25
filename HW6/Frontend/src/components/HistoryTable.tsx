@@ -1,18 +1,8 @@
 import { Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
-
-interface Run {
-  runId: string;
-  timestamp: string;
-  assemblyCount: number;
-  totalTests: number;
-  passed: number;
-  failed: number;
-  errored: number;
-  ignored: number;
-}
+import type { RunSummaryDto } from '../types/api';
 
 interface HistoryTableProps {
-  runs: Run[];
+  runs: RunSummaryDto[];
   onSelectRun: (runId: string) => void;
 }
 
