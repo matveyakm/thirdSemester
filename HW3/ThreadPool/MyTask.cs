@@ -126,7 +126,7 @@ internal sealed class MyTask<TResult> : IMyTask<TResult>
                 this.isCompleted = true;
                 this.completionEvent.Set();
 
-                continuationsToExecute = new List<Action>(this.continuations);
+                continuationsToExecute = [.. this.continuations];
                 this.continuations.Clear();
 
                 foreach (var continuation in continuationsToExecute)
